@@ -10,11 +10,11 @@ import win32api
 import subprocess
 import shutil
 
-try:
-    import requests
-    REQUESTS_AVAILABLE = True
-except ImportError:
-    REQUESTS_AVAILABLE = False
+# try:
+#     import requests
+#     REQUESTS_AVAILABLE = True
+# except ImportError:
+#     REQUESTS_AVAILABLE = False
 
 # Windows API Duplex Constants
 DMDUP_SIMPLEX = 1 # Single-sided printing
@@ -79,25 +79,36 @@ class WatchedMultiPrintApp:
         duplex_cb = tk.Checkbutton(settings_frame, text="Double-Sided Printing", variable=self.duplex_var)
         duplex_cb.grid(row=1, column=0, columnspan=2, sticky="w", padx=5, pady=(5, 0))
 
-        # DocuWare API Settings Area (Saved Persistently)
-        dw_frame = tk.LabelFrame(root, text="DocuWare API Credentials (Automatically Saved)", font=("Arial", 9, "bold"), padx=10, pady=5)
-        dw_frame.pack(fill="x", padx=20, pady=5)
+        # # DocuWare API Settings Area (Saved Persistently)
+        # dw_frame = tk.LabelFrame(root, text="DocuWare API Credentials (Automatically Saved)", font=("Arial", 9, "bold"), padx=10, pady=5)
+        # dw_frame.pack(fill="x", padx=20, pady=5)
 
-        tk.Label(dw_frame, text="Server URL:").grid(row=0, column=0, sticky="w", padx=2)
-        self.dw_url_var = tk.StringVar(value="https://your-docuware-server/DocuWare/Platform")
-        tk.Entry(dw_frame, textvariable=self.dw_url_var, width=38).grid(row=0, column=1, padx=5, pady=2)
+        # tk.Label(dw_frame, text="Server URL:").grid(row=0, column=0, sticky="w", padx=2)
+        # self.dw_url_var = tk.StringVar(value="https://your-docuware-server/DocuWare/Platform")
+        # tk.Entry(dw_frame, textvariable=self.dw_url_var, width=38).grid(row=0, column=1, padx=5, pady=2)
 
-        tk.Label(dw_frame, text="Username:").grid(row=1, column=0, sticky="w", padx=2)
-        self.dw_user_var = tk.StringVar()
-        tk.Entry(dw_frame, textvariable=self.dw_user_var, width=38).grid(row=1, column=1, padx=5, pady=2)
+        # tk.Label(dw_frame, text="Username:").grid(row=1, column=0, sticky="w", padx=2)
+        # self.dw_user_var = tk.StringVar()
+        # tk.Entry(dw_frame, textvariable=self.dw_user_var, width=38).grid(row=1, column=1, padx=5, pady=2)
 
-        tk.Label(dw_frame, text="Password:").grid(row=2, column=0, sticky="w", padx=2)
-        self.dw_pass_var = tk.StringVar()
-        tk.Entry(dw_frame, textvariable=self.dw_pass_var, show="*", width=38).grid(row=2, column=1, padx=5, pady=2)
+        # tk.Label(dw_frame, text="Password:").grid(row=2, column=0, sticky="w", padx=2)
+        # self.dw_pass_var = tk.StringVar()
+        # tk.Entry(dw_frame, textvariable=self.dw_pass_var, show="*", width=38).grid(row=2, column=1, padx=5, pady=2)
 
-        tk.Label(dw_frame, text="Tray (Basket) ID:").grid(row=3, column=0, sticky="w", padx=2)
-        self.dw_tray_var = tk.StringVar()
-        tk.Entry(dw_frame, textvariable=self.dw_tray_var, width=38).grid(row=3, column=1, padx=5, pady=2)
+        # tk.Label(dw_frame, text="Tray (Basket) ID:").grid(row=3, column=0, sticky="w", padx=2)
+        # self.dw_tray_var = tk.StringVar()
+        # tk.Entry(dw_frame, textvariable=self.dw_tray_var, width=38).grid(row=3, column=1, padx=5, pady=2)
+
+        # Docuware Watch folder
+        tk.Label(root, text="Folder for Docuware Import", font=("Arial", 10, "bold")).pack(pady=(10,5))
+        dir_frame = tk.Frame(root)
+        dir_frame.pack(fill="x", padx=20)
+
+        default_docuware_folder = os.path.join(os.path.expanduser("~"), "Desktop", "DocuWareImport")
+        self.watch_dwfolder_path = tk.StringVar(value=default_docuware_folder)
+
+        tk.Entry(dir_frame, textvariable=self.watch_dwfolder_path, width=35).pack(side="left", padx=5)
+        tk.Button(dir_frame, text="Browse...", command=self.browse_dw_folder).pack(side="left")
 
         # Default folder on desktop
         tk.Label(root, text="Folder to Watch for Print Jobs:", font=("Arial", 10, "bold")).pack(pady=(10, 5))
@@ -120,48 +131,53 @@ class WatchedMultiPrintApp:
         self.listen_btn = tk.Button(root, text="START LISTENING", bg="green", fg="white", font=("Arial", 11, "bold"), command=self.toggle_listening)
         self.listen_btn.pack(pady=10)
 
-        self.load_config()  # Load saved DocuWare API settings if available
+        # self.load_config()  # Load saved DocuWare API settings if available
 
-        self.root.protocol("WM_DELETE_WINDOW", self.on_close)  # Handle window close event
+        # self.root.protocol("WM_DELETE_WINDOW", self.on_close)  # Handle window close event
 
-    def load_config(self):
-        # """Loads saved settings from ~/.printmulti_config.json if present."""
-        if os.path.exists(CONFIG_FILE_PATH):
-            try:
-                with open(CONFIG_FILE_PATH, "r") as f:
-                    data = json.load(f)
-                    self.dw_url_var.set(data.get("dw_url", "https://your-docuware-server/DocuWare/Platform"))
-                    self.dw_user_var.set(data.get("dw_user", ""))
-                    self.dw_pass_var.set(data.get("dw_pass", ""))
-                    self.dw_tray_var.set(data.get("dw_tray", ""))
-                    if "watch_path" in data and data["watch_path"]:
-                        self.watch_path.set(data["watch_path"])
-            except Exception as e:
-                print(f"Error loading config file: {e}")
+    # def load_config(self):
+    #     # """Loads saved settings from ~/.printmulti_config.json if present."""
+    #     if os.path.exists(CONFIG_FILE_PATH):
+    #         try:
+    #             with open(CONFIG_FILE_PATH, "r") as f:
+    #                 data = json.load(f)
+    #                 self.dw_url_var.set(data.get("dw_url", "https://your-docuware-server/DocuWare/Platform"))
+    #                 self.dw_user_var.set(data.get("dw_user", ""))
+    #                 self.dw_pass_var.set(data.get("dw_pass", ""))
+    #                 self.dw_tray_var.set(data.get("dw_tray", ""))
+    #                 if "watch_path" in data and data["watch_path"]:
+    #                     self.watch_path.set(data["watch_path"])
+    #         except Exception as e:
+    #             print(f"Error loading config file: {e}")
 
-    def save_config(self):
-        """Saves current UI parameters to ~/.printmulti_config.json."""
-        data = {
-            "dw_url": self.dw_url_var.get(),
-            "dw_user": self.dw_user_var.get(),
-            "dw_pass": self.dw_pass_var.get(),
-            "dw_tray": self.dw_tray_var.get(),
-            "watch_path": self.watch_path.get()
-        }
-        try:
-            with open(CONFIG_FILE_PATH, "w") as f:
-                json.dump(data, f, indent=4)
-        except Exception as e:
-            print(f"Error saving config file: {e}")
+    # def save_config(self):
+    #     """Saves current UI parameters to ~/.printmulti_config.json."""
+    #     data = {
+    #         "dw_url": self.dw_url_var.get(),
+    #         "dw_user": self.dw_user_var.get(),
+    #         "dw_pass": self.dw_pass_var.get(),
+    #         "dw_tray": self.dw_tray_var.get(),
+    #         "watch_path": self.watch_path.get()
+    #     }
+    #     try:
+    #         with open(CONFIG_FILE_PATH, "w") as f:
+    #             json.dump(data, f, indent=4)
+    #     except Exception as e:
+    #         print(f"Error saving config file: {e}")
 
-    def on_close(self):
-        self.save_config()  # Save settings before closing
-        self.root.destroy()
+    # def on_close(self):
+    #     self.save_config()  # Save settings before closing
+    #     self.root.destroy()
 
     def browse_folder(self):
         folder = filedialog.askdirectory(title="Select Folder to Watch for Print Jobs")
         if folder:
             self.watch_path.set(folder)
+
+    def browse_dw_folder(self):
+        folder = filedialog.askdirectory(title="Select DocuWare Import Folder")
+        if folder:
+            self.watch_dwfolder_path.set(folder)
 
     def toggle_listening(self):
         if self.is_listening:
@@ -209,42 +225,41 @@ class WatchedMultiPrintApp:
                 time.sleep(0.5)
         return False
 
-    def upload_to_docuware(self, file_path):
-        """Uploads the PDF file directly to DocuWare Tray via REST API."""
-        if not REQUESTS_AVAILABLE:
-            raise Exception("'requests' library is not installed. Please run 'pip install requests'.")
+    # def upload_to_docuware(self, file_path):
+    #     """Uploads the PDF file directly to DocuWare Tray via REST API."""
+    #     if not REQUESTS_AVAILABLE:
+    #         raise Exception("'requests' library is not installed. Please run 'pip install requests'.")
 
-        url = self.dw_url_var.get().rstrip('/')
-        username = self.dw_user_var.get()
-        password = self.dw_pass_var.get()
-        basket_id = self.dw_tray_var.get()
+    #     url = self.dw_url_var.get().rstrip('/')
+    #     username = self.dw_user_var.get()
+    #     password = self.dw_pass_var.get()
+    #     basket_id = self.dw_tray_var.get()
 
-        if not username or not password or not basket_id:
-            raise Exception("DocuWare credentials or Tray ID are missing in UI settings!")
+    #     if not username or not password or not basket_id:
+    #         raise Exception("DocuWare credentials or Tray ID are missing in UI settings!")
 
-        session = requests.Session()
-        session.headers.update({"Accept": "application/json"})
+    #     session = requests.Session()
+    #     session.headers.update({"Accept": "application/json"})
 
-        # 1. Log in
-        logon_url = f"{url}/Identity/Account/Login"
-        response = session.post(logon_url, data={"UserName": username, "Password": password}, timeout=15)
-        response.raise_for_status()
+    #     # 1. Log in
+    #     logon_url = f"{url}/Identity/Account/Login"
+    #     response = session.post(logon_url, data={"UserName": username, "Password": password}, timeout=15)
+    #     response.raise_for_status()
 
-        # 2. Upload PDF
-        upload_url = f"{url}/FileCabinets/{basket_id}/Documents"
-        filename = os.path.basename(file_path)
-        with open(file_path, "rb") as f:
-            files = {"file": (filename, f, "application/pdf")}
-            upload_res = session.post(upload_url, files=files, timeout=30)
-            upload_res.raise_for_status()
+    #     # 2. Upload PDF
+    #     upload_url = f"{url}/FileCabinets/{basket_id}/Documents"
+    #     filename = os.path.basename(file_path)
+    #     with open(file_path, "rb") as f:
+    #         files = {"file": (filename, f, "application/pdf")}
+    #         upload_res = session.post(upload_url, files=files, timeout=30)
+    #         upload_res.raise_for_status()
 
-        # 3. Log off
-        try:
-            session.post(f"{url}/Account/Logoff", timeout=5)
-        except Exception:
-            pass
-
-        return True
+    #     # 3. Log off
+    #     try:
+    #         session.post(f"{url}/Account/Logoff", timeout=5)
+    #     except Exception:
+    #         pass
+    #     return True
 
     def set_printer_duplex(self, printer_name, is_double_sided):
         # modifies windows driver settings for the printer to set duplex mode
@@ -319,38 +334,46 @@ class WatchedMultiPrintApp:
         # Apply duplex setting for the printer before sending the job
         ext = os.path.splitext(file_path)[1].lower()
 
-        # route 1 if docuware specifically
         if ext == ".pdf" and "docuware" in printer_name.lower():
             try:
-                print(f"Uploading '{file_path}' to DocuWare via REST API...")
-                self.upload_to_docuware(file_path)
-                return  # Skip physical printer routine
+                print(f"Copying '{file_path}' to DocuWare Import Folder...")
+                self.send_to_docuware_desktop(file_path)
+                return
             except Exception as e:
-                print(f"DocuWare REST API Upload failed: {e}")
+                print(f"Failed to transfer file: {e}")
+
+        # route 1 if docuware specifically
+        # if ext == ".pdf" and "docuware" in printer_name.lower():
+        #     try:
+        #         print(f"Uploading '{file_path}' to DocuWare via REST API...")
+        #         self.upload_to_docuware(file_path)
+        #         return  # Skip physical printer routine
+        #     except Exception as e:
+        #         print(f"DocuWare REST API Upload failed: {e}")
 
         # Look for SumatraPDF.exe in the built in pyinstaller directory or in the same directory as the script
         self.set_printer_duplex(printer_name, is_duplex)
         sumatra_path = self.get_sumatra_path()
 
         #for virtual printer drivers that don't support duplex, we can still send the job but it will be single-sided
-        # if ext == ".pdf" and self.is_virtual_printer(printer_name) and sumatra_path:
-        #     try:
-        #         # Build duplex setting string for SumatraPDF command line
-        #         duplex_setting = "duplex" if is_duplex else "simplex"
-        #         settings_str = f"{num_copies} {duplex_setting}"
+        if ext == ".pdf" and self.is_virtual_printer(printer_name) and sumatra_path:
+            try:
+                # Build duplex setting string for SumatraPDF command line
+                duplex_setting = "duplex" if is_duplex else "simplex"
+                settings_str = f"{num_copies} {duplex_setting}"
 
-        #         cmd = [
-        #             sumatra_path,
-        #             "-print-to", printer_name,
-        #             "-print-settings", settings_str,
-        #             file_path
-        #         ]
+                cmd = [
+                    sumatra_path,
+                    "-print-to", printer_name,
+                    "-print-settings", settings_str,
+                    file_path
+                ]
 
-        #         subprocess.run(cmd, check=True,
-        #                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        #         return  # Exit after successful SumatraPDF print
-        #     except Exception as e:
-        #         print(f"Error printing PDF to {printer_name} using SumatraPDF: {e}")
+                subprocess.run(cmd, check=True,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                return  # Exit after successful SumatraPDF print
+            except Exception as e:
+                print(f"Error printing PDF to {printer_name} using SumatraPDF: {e}")
 
         for copy_idx in range(num_copies):
             try:
@@ -428,6 +451,18 @@ class WatchedMultiPrintApp:
             pass
 
         return False
+
+    def send_to_docuware_desktop(self, file_path):
+        DOCUWARE_WATCH_FOLDER = self.watch_dwfolder_path.get()
+        # Copies a pdf into the folder watched by the DocuWare Desktop App
+        if not os.path.exists(DOCUWARE_WATCH_FOLDER):
+            os.makedirs(DOCUWARE_WATCH_FOLDER, exists_ok=True)
+
+        filename = os.path.basename(file_path)
+        destination = os.path.join(DOCUWARE_WATCH_FOLDER, filename)
+
+        shutil.copy2(file_path, destination)
+        print(f"File '{filename}' dropped into DocuWare watched folder.")
 
 
 def main():
