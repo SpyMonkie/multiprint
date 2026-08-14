@@ -4,7 +4,7 @@ import time
 import json
 import threading
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, scrolledtext
 import win32print
 import win32api
 import subprocess
@@ -33,18 +33,30 @@ class WatchedMultiPrintApp:
 
         self.is_listening = False
 
+        # Tab container setup
+        self.notebook = ttk.Notebook(root)
+        self.notebook.pack(fill="both", expand=True, padx=5, pady=5)
+
+        # Tab 1: Main Controls
+        self.main_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.main_tab, text=" Main / Settings ")
+
+        # Tab 2: Activity Log
+        self.log_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.log_tab, text=" Activity Log ")
+
         # Fetch available printers from Windows OS
         printer_info = win32print.EnumPrinters(win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS)
         # Store only the printer names for display and selection
         self.system_printers = [p[2] for p in printer_info]
 
         # UI Layout Setup
-        tk.Label(root, text="Select Output Target Printers:", font=("Arial", 10, "bold")).pack(pady=(10, 5))
+        tk.Label(self.main_tab, text="Select Output Target Printers:", font=("Arial", 10, "bold")).pack(pady=(10, 5))
 
         # Printer Selection Checkboxes
 
         # set up a scrollable frame for the printer checkboxes
-        container = tk.Frame(root)
+        container = tk.Frame(self.main_tab)
         container.pack(fill="both", expand=True, padx=20, pady=(0, 10))
         canvas = tk.Canvas(container, height=200)
         scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
@@ -66,7 +78,7 @@ class WatchedMultiPrintApp:
             cb.pack(fill="x", anchor="w", padx=5, pady=2)
 
         # Print Settings Area (Duplex, Collate, Copies)
-        settings_frame = tk.LabelFrame(root, text="Print Settings", padx=10, pady=10)
+        settings_frame = tk.LabelFrame(self.main_tab, text="Print Settings", padx=10, pady=10)
         settings_frame.pack(fill="x", padx=20, pady=(5, 10))
 
         # Copies SpinBox
@@ -101,8 +113,8 @@ class WatchedMultiPrintApp:
         # tk.Entry(dw_frame, textvariable=self.dw_tray_var, width=38).grid(row=3, column=1, padx=5, pady=2)
 
         # Docuware Watch folder
-        tk.Label(root, text="Folder for Docuware Import", font=("Arial", 10, "bold")).pack(pady=(10,5))
-        dir_frame = tk.Frame(root)
+        tk.Label(self.main_tab, text="Folder for Docuware Import", font=("Arial", 10, "bold")).pack(pady=(10,5))
+        dir_frame = tk.Frame(self.main_tab)
         dir_frame.pack(fill="x", padx=20)
 
         default_docuware_folder = os.path.join(os.path.expanduser("~"), "Desktop", "DocuWareImport")
@@ -112,8 +124,8 @@ class WatchedMultiPrintApp:
         tk.Button(dir_frame, text="Browse...", command=self.browse_dw_folder).pack(side="left")
 
         # Default folder on desktop
-        tk.Label(root, text="Folder to Watch for Print Jobs:", font=("Arial", 10, "bold")).pack(pady=(10, 5))
-        dir_frame = tk.Frame(root)
+        tk.Label(self.main_tab, text="Folder to Watch for Print Jobs:", font=("Arial", 10, "bold")).pack(pady=(10, 5))
+        dir_frame = tk.Frame(self.main_tab)
         dir_frame.pack(fill="x", padx=20)
 
 
@@ -124,12 +136,12 @@ class WatchedMultiPrintApp:
         tk.Button(dir_frame, text="Browse...", command=self.browse_folder).pack(side="left")
 
         # Mode Selection
-        tk.Label(root, text="Mode Selector", font=("Arial", 10, "bold")).pack(pady=(10,5))
-        dir_frame = tk.Frame(root)
+        tk.Label(self.main_tab, text="Mode Selector", font=("Arial", 10, "bold")).pack(pady=(10,5))
+        dir_frame = tk.Frame(self.main_tab)
         dir_frame.pack(fill="x", padx=20)
         self.listen_mode = tk.StringVar(value="continuous") # "continuous" or "once"
 
-        mode_frame = tk.Frame(root)
+        mode_frame = tk.Frame(self.main_tab)
         mode_frame.pack(pady=5)
 
         tk.Radiobutton(mode_frame, text="Continuous Mode", variable=self.listen_mode, value="continuous").pack(side="left", padx=10)
@@ -137,16 +149,47 @@ class WatchedMultiPrintApp:
 
         # Display Status Message
         self.status_var = tk.StringVar(value="Status: Idle (Not Listenting)")
-        self.status_label = tk.Label(root, textvariable=self.status_var, font=("Arial", 10, "italic"), fg="blue")
+        self.status_label = tk.Label(self.main_tab, textvariable=self.status_var, font=("Arial", 10, "italic"), fg="blue")
         self.status_label.pack(pady=(10, 5))
 
         # Action button to start/stop listening
-        self.listen_btn = tk.Button(root, text="START LISTENING", bg="green", fg="white", font=("Arial", 11, "bold"), command=self.toggle_listening)
+        self.listen_btn = tk.Button(self.main_tab, text="START LISTENING", bg="green", fg="white", font=("Arial", 11, "bold"), command=self.toggle_listening)
         self.listen_btn.pack(pady=10)
+
+        # ACTIVITY LOG CONTENT
+        # Log box
+        log_control_frame = tk.Frame(self.log_tab)
+        log_control_frame.pack(fill="x", padx=10, pady=5)
+
+        tk.Label(log_control_frame, text="Real-Time Event Log:", font=("Arial", 9, "bold")).pack(side="left")
+        tk.Button(log_control_frame, text="Clear Log", command=self.clear_log).pack(side="right")
+
+        self.log_box = scrolledtext.ScrolledText(self.log_tab, height=6, state="disabled", font=("Consolas", 8))
+        self.log_box.pack(fill="both", expand=True, padx=20, pady=(0, 5))
 
         self.load_config()  # Load saved DocuWare API settings if available
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)  # Handle window close event
+
+    def clear_log(self):
+        # Clears all text in the Activity Log tab.
+        self.log_box.config(state="normal")
+        self.log_box.delete("1.0", tk.END)
+        self.log_box.config(state="disabled")
+
+    # Helper method for adding text to log box
+    def log(self, message):
+        # Thread-safe logging to the UI text box and console.
+        print(message) # kept for debugging in terminal mode
+
+        def append_text():
+            self.log_box.config(state="normal")
+            self.log_box.insert(tk.END, f"{message}\n")
+            self.log_box.see(tk.END) # Auto-scroll to bottom
+            self.log_box.config(state="disabled")
+
+        # Safely schedule text update on Tkinter's main UI thread
+        self.root.after(0, append_text)
 
     def load_config(self):
         # Loads saved settings from JSON file if present.
@@ -177,9 +220,9 @@ class WatchedMultiPrintApp:
                         else:
                             var.set(False)
 
-                print("Configuration loaded successfully.")
+                self.log("Configuration loaded successfully.")
             except Exception as e:
-                print(f"Error loading config file: {e}")
+                self.log(f"Error loading config file: {e}")
 
 
     def save_config(self):
@@ -314,7 +357,7 @@ class WatchedMultiPrintApp:
             finally:
                 win32print.ClosePrinter(p_handle)
         except Exception as e:
-            print(f"Error setting duplex mode for {printer_name}: {e}")
+            self.log(f"Error setting duplex mode for {printer_name}: {e}")
 
     def watch_loop(self):
         watch_dir = self.watch_path.get()
@@ -344,7 +387,7 @@ class WatchedMultiPrintApp:
                     is_duplex = self.duplex_var.get()
 
                     # Process printing with selected options (copies, duplex) and send to all selected printers
-                    self.process_and_print(target_file, selected_printers, num_copies, is_duplex)
+                    results = self.process_and_print(target_file, selected_printers, num_copies, is_duplex)
 
                     # Pause to let Windows process the print job before deleting the file
                     time.sleep(2.0)
@@ -353,38 +396,108 @@ class WatchedMultiPrintApp:
                     try:
                         os.remove(target_file)
                     except Exception as e:
-                        print(f"Error deleting file': {e}")
+                        self.log(f"Error deleting file': {e}")
+
+                    # Analyze results
+                    successful = [p for p, success in results.items() if success]
+                    failed = [p for p, success in results.items() if not success]
 
                     mode = self.listen_mode.get()
 
                     if mode == "once":
                         # One-time trigger completed: reset status and stop listener
-                        completion_message = f"Status: Job broadcasted to {len(selected_printers)} printers simultaneously!"
-                        self.root.after(0, lambda: self.stop_listening(completion_message))
-                        self.root.after(0, lambda: messagebox.showinfo(
-                            "Success", f"Detected and broadcasted to {len(selected_printers)} printers successfully!"
-                        ))
-                        break
+                        if len(failed) == 0:
+                            msg = f"Successfully broadcasted '{filename}' to all {len(successful)} target(s)!"
+                            self.root.after(0, lambda: self.stop_listening(f"Status: {msg}"))
+                            self.root.after(0, lambda m=msg: messagebox.showinfo("Success", m))
+                            self.log(msg)
+                        elif len(successful) > 0:
+                            msg = f"Printed to {len(successful)} target(s), but FAILED on {len(failed)} target(s):\n\nFailed Printers:\n- " + "\n- ".join(failed)
+                            self.root.after(0, lambda: self.stop_listening("Status: Completed with warnings."))
+                            self.root.after(0, lambda m=msg: messagebox.showwarning("Partial Failure", m))
+                            self.log(msg)
+                        else:
+                            msg = f"Failed to print '{filename}' to any selected printer! Check Activity Log for details."
+                            self.root.after(0, lambda: self.stop_listening("Status: Print job failed."))
+                            self.root.after(0, lambda m=msg: messagebox.showerror("Print Failed", m))
+                            self.log(msg)
+                        
+                        break  # Stop loop for single job mode
                     else:
                         # CONTINUOUS MODE: Keep listening for the next file without stopping or popping up
-                        status_msg = f"Status: Sent '{filename}' to {len(selected_printers)} target(s). Waiting for next job..."
+                        if len(failed) == 0:
+                            status_msg = f"Status: Sent '{filename}' to {len(successful)} target(s). Waiting for next job..."
+                        else:
+                            status_msg = f"Status: Sent '{filename}' with errors ({len(failed)} failed). Waiting for next job..."
                         self.root.after(0, lambda msg=status_msg: self.status_var.set(msg))
+                        self.log(status_msg)
             except Exception as e:
-                print(f"Error during watch loop: {e}")
+                self.log(f"Error during watch loop: {e}")
 
             time.sleep(1)  # Polling interval
+
+    def print_via_win32print_raw(self, printer_name, file_path, num_copies):
+        # Method A: Direct RAW spooling using win32print (Best for physical printers).
+        try:
+            hPrinter = win32print.OpenPrinter(printer_name)
+            try:
+                hJob = win32print.StartDocPrinter(hPrinter, 1, ("MultiPrint Job", None, "RAW"))
+                win32print.StartPagePrinter(hPrinter)
+                with open(file_path, "rb") as f:
+                    win32print.WritePrinter(hPrinter, f.read())
+                win32print.EndPagePrinter(hPrinter)
+                win32print.EndDocPrinter(hPrinter)
+                return True
+            finally:
+                win32print.ClosePrinter(hPrinter)
+        except Exception as e:
+            self.log(f"Error printing to {printer_name}: {e}")
+            return False
+
+    def print_via_sumatrapdf(self, sumatra_path, printer_name, file_path, num_copies, is_duplex):
+        # Method B: Silent background rendering via SumatraPDF CLI executable.
+        try:
+            duplex_setting = "duplex" if is_duplex else "simplex"
+            cmd = [
+                sumatra_path,
+                "-print-to", printer_name,
+                "-print-settings", f"{num_copies}x,{duplex_setting}",
+                file_path
+            ]
+            result = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            return result.returncode == 0
+        except Exception as e:
+            self.log(f"SumatraPDF failed: {e}")
+            return False
+
+    def print_via_shellexecute(self, printer_name, file_path, num_copies):
+        # Method C: Windows ShellExecute printto verb (Fallback for standard files)
+        try:
+            for _ in range(num_copies):
+                # Returns hInstance > 32 if process started successfully
+                status = win32api.ShellExecute(0, "printto", file_path, f'"{printer_name}"', ".", 0)
+                if status <= 32:
+                    return False
+                time.sleep(1.0)
+            return True
+        except Exception as e:
+            self.log(f"ShellExecute failed: {e}")
+            return False
 
     def print_worker(self, printer_name, file_path, num_copies, is_duplex):
         # Apply duplex setting for the printer before sending the job
         ext = os.path.splitext(file_path)[1].lower()
 
+        # Docuware Import target
         if ext == ".pdf" and "docuware" in printer_name.lower():
             try:
-                print(f"Copying '{file_path}' to DocuWare Import Folder...")
+                self.log(f"Copying '{file_path}' to DocuWare Import Folder...")
                 self.send_to_docuware_desktop(file_path)
-                return
+                self.log(f"DocuWare transfer successful!")
+                return True
             except Exception as e:
-                print(f"Failed to transfer file: {e}")
+                self.log(f"DocuWare transfer fialed: {e}")
+                return False
 
         # route 1 if docuware specifically
         # if ext == ".pdf" and "docuware" in printer_name.lower():
@@ -395,99 +508,78 @@ class WatchedMultiPrintApp:
         #     except Exception as e:
         #         print(f"DocuWare REST API Upload failed: {e}")
 
-        # Look for SumatraPDF.exe in the built in pyinstaller directory or in the same directory as the script
+        # Configure duplex driver settings for physical hardware
         self.set_printer_duplex(printer_name, is_duplex)
-        # sumatra_path = self.get_sumatra_path()
+        self.log(f"Processing print job for: '{printer_name}'...")
 
-        #for virtual printer drivers that don't support duplex, we can still send the job but it will be single-sided
-        # if ext == ".pdf" and self.is_virtual_printer(printer_name) and sumatra_path:
-        #     try:
-        #         # Build duplex setting string for SumatraPDF command line
-        #         duplex_setting = "duplex" if is_duplex else "simplex"
-        #         settings_str = f"{num_copies} {duplex_setting}"
+        # Check if target is a virtual driver (Microsoft Print to PDF, etc.)
+        is_virtual = self.is_virtual_printer(printer_name)
 
-        #         cmd = [
-        #             sumatra_path,
-        #             "-print-to", printer_name,
-        #             "-print-settings", settings_str,
-        #             file_path
-        #         ]
+        # Try Direct RAW Spooling
+        if not is_virtual:
+            self.log(" Trying win32print RAW Spooling...")
+            if self.print_via_win32print_raw(printer_name, file_path, num_copies):
+                self.log(f"win32print RAW spooling Success: Sent raw bytes to '{printer_name}'")
+                return True
+        else:
+            self.log("Skipped: Virual Printer detected (cannot accept RAW binary)")
 
-        #         subprocess.run(cmd, check=True,
-        #                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        #         return  # Exit after successful SumatraPDF print
-        #     except Exception as e:
-        #         print(f"Error printing PDF to {printer_name} using SumatraPDF: {e}")
+        sumatra_path = self.get_sumatra_path()
+        if ext == ".pdf" and sumatra_path:
+            self.log("Trying SumatraPDF Engine...")
+            if self.print_via_sumatrapdf(sumatra_path, printer_name, file_path, num_copies, is_duplex):
+                self.log(f"Success: SumatraPDF spooled job to '{printer_name}'")
+                return True
+        elif ext == ".pdf" and not sumatra_path:
+            self.log("Skipped: 'SumatraPDF.exe' not found in app directory")
 
-        for copy_idx in range(num_copies):
-            try:
-                hPrinter = win32print.OpenPrinter(printer_name)
-                try:
-                    hJob = win32print.StartDocPrinter(hPrinter, 1, ("MultiPrint Job", None, "RAW"))
-                    win32print.StartPagePrinter(hPrinter)
-                    with open(file_path, "rb") as f:
-                        win32print.WritePrinter(hPrinter, f.read())
-                    win32print.EndPagePrinter(hPrinter)
-                    win32print.EndDocPrinter(hPrinter)
-                finally:
-                    win32print.ClosePrinter(hPrinter)
-            except Exception as e:
-                print(f"Error printing to {printer_name}: {e}")
+        # ShellExecute Default App Handler (Final Fallback)
+        self.log("Trying Windows ShellExecute (printto)...")
+        if self.print_via_shellexecute(printer_name, file_path, num_copies):
+            self.log(f"Success: ShellExecute to '{printer_name}'.")
+            return True
 
-        # for copy_idx in range(num_copies):
-        #     try:
-        #         if ext in ['.pdf', '.txt', '.docx', '.doc', '.jpg', '.png']:
-        #             # Use Windows ShellExecute to print the file to render the document in the default application and send it to the printer
-        #             win32api.ShellExecute(
-        #                 0,
-        #                 "printto",
-        #                 file_path,
-        #                 f'"{printer_name}"',
-        #                 ".",
-        #                 0
-        #             )
-        #             time.sleep(1.0)  # Small delay between copies to avoid overwhelming the printer
-        #         else:
-        #             # For other file types, attempt to send the raw data directly to the printer
-        #             hPrinter = win32print.OpenPrinter(printer_name)
-        #             try:
-        #                 hJob = win32print.StartDocPrinter(hPrinter, 1, ("MultiPrint Job", None, "RAW"))
-        #                 win32print.StartPagePrinter(hPrinter)
-        #                 with open(file_path, "rb") as f:
-        #                     win32print.WritePrinter(hPrinter, f.read())
-        #                 win32print.EndPagePrinter(hPrinter)
-        #                 win32print.EndDocPrinter(hPrinter)
-        #             finally:
-        #                 win32print.ClosePrinter(hPrinter)
-        #     except Exception as e:
-        #         print(f"Error printing to {printer_name}: {e}")
+        # ALL TIERS FAILED
+        self.log(f"All print methods failed for target '{printer_name}'.")
+        return False
 
     def process_and_print(self, file_path, printers, num_copies=1, is_duplex=False):
+        results = {}
+
+        def worker_wrapper(printer):
+            results[printer] = self.print_worker(printer, file_path, num_copies, is_duplex)
+
         threads = []
         for printer in printers:
-            t = threading.Thread(target=self.print_worker, args=(printer, file_path, num_copies, is_duplex))
+            t = threading.Thread(target=worker_wrapper, args=(printer,))
             threads.append(t)
             t.start()
 
         for t in threads:
             t.join()  # Wait for all threads to finish
 
-    # def get_sumatra_path():
-    #     # Locates SumatraPDF.exe when running as a script or inside a PyInstaller EXE.
-    #     if getattr(sys, 'frozen', False):
-    #         # Running inside PyInstaller bundled executable
-    #         base_path = sys._MEIPASS
-    #     else:
-    #         # Running as a normal Python script
-    #         base_path = os.path.dirname(os.path.abspath(__file__))
+        return results
 
-    #     sumatra_exe = os.path.join(base_path, "SumatraPDF.exe")
-    #     return sumatra_exe if os.path.exists(sumatra_exe) else None
+    def get_sumatra_path(self):
+        # Locates SumatraPDF.exe when running as a script or inside a PyInstaller EXE.
+        if getattr(sys, 'frozen', False):
+            # Running inside PyInstaller bundled executable
+            base_path = sys._MEIPASS
+        else:
+            # Running as a normal Python script
+            base_path = os.path.dirname(os.path.abspath(__file__))
+
+        sumatra_exe = os.path.join(base_path, "SumatraPDF.exe")
+        return sumatra_exe if os.path.exists(sumatra_exe) else None
 
     def is_virtual_printer(self, printer_name):
-        """Detects if a printer is a virtual driver (DocuWare, PDF, File Port, etc.)."""
+        # Detects if a printer is a virtual driver (DocuWare, PDF, File Port, etc.).
         # Quick name check for common virtual printer keywords
-        virtual_keywords = ["pdf", "docuware", "xps", "onenote", "cutepdf", "foxit", "bullzip", "virtual", "fax"]
+        virtual_keywords = [
+            "pdf", "docuware", "xps", "onenote", "cutepdf", 
+            "foxit", "bullzip", "virtual", "fax", "adobe", 
+            "snagit", "pdf24", "nitro", "writer", "creator", "converter"
+        ]
         if any(keyword in printer_name.lower() for keyword in virtual_keywords):
             return True
 
@@ -500,9 +592,9 @@ class WatchedMultiPrintApp:
                 driver = info.get("pDriverName", "").lower()
 
                 # Check if port or driver indicates a file/virtual output
-                if any(k in port for k in ["pdf", "file:", "nul:", "prompt", "docuware"]):
+                if any(k in port for k in ["pdf", "file:", "nul:", "prompt", "docuware", "portpro"]):
                     return True
-                if any(k in driver for k in ["pdf", "docuware", "xps"]):
+                if any(k in driver for k in ["pdf", "docuware", "xps", "ghostscript"]):
                     return True
             finally:
                 win32print.ClosePrinter(h_printer)
@@ -521,7 +613,7 @@ class WatchedMultiPrintApp:
         destination = os.path.join(DOCUWARE_WATCH_FOLDER, filename)
 
         shutil.copy2(file_path, destination)
-        print(f"File '{filename}' dropped into DocuWare watched folder.")
+        self.log(f"File '{filename}' dropped into '{file_path}'.")
 
 # Unique identifier string for your application (use any unique name)
 APP_MUTEX_NAME = "Global\\WatchedMultiPrintApp_SingleInstance_Mutex_9988"
