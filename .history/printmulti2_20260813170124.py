@@ -355,20 +355,13 @@ class WatchedMultiPrintApp:
                     except Exception as e:
                         print(f"Error deleting file': {e}")
 
-                    mode = self.listen_mode.get()
-
-                    if mode == "once":
-                        # One-time trigger completed: reset status and stop listener
-                        completion_message = f"Status: Job broadcasted to {len(selected_printers)} printers simultaneously!"
-                        self.root.after(0, lambda: self.stop_listening(completion_message))
-                        self.root.after(0, lambda: messagebox.showinfo(
-                            "Success", f"Detected and broadcasted to {len(selected_printers)} printers successfully!"
-                        ))
-                        break
-                    else:
-                        # CONTINUOUS MODE: Keep listening for the next file without stopping or popping up
-                        status_msg = f"Status: Sent '{filename}' to {len(selected_printers)} target(s). Waiting for next job..."
-                        self.root.after(0, lambda msg=status_msg: self.status_var.set(msg))
+                    # One-time trigger completed: reset status and stop listener
+                    completion_message = f"Status: Job broadcasted to {len(selected_printers)} printers simultaneously!"
+                    self.root.after(0, lambda: self.stop_listening(completion_message))
+                    self.root.after(0, lambda: messagebox.showinfo(
+                        "Success", f"Detected and broadcasted to {len(selected_printers)} printers successfully!"
+                    ))
+                    break
             except Exception as e:
                 print(f"Error during watch loop: {e}")
 

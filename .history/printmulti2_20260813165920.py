@@ -166,8 +166,6 @@ class WatchedMultiPrintApp:
                         self.copies_var.set(data["copies"])
                     if "duplex" in data:
                         self.duplex_var.set(data["duplex"])
-                    if "listen_mode" in data and data["listen_mode"]:
-                        self.listen_mode.set(data["listen_mode"])
 
                     # Restore checkbox selections for pritners
                     saved_printers = data.get("selected_printers", [])
@@ -191,8 +189,7 @@ class WatchedMultiPrintApp:
             "watch_dw_folder_path": self.watch_dwfolder_path.get(),
             "selected_printers": selected_printers,
             "copies": self.copies_var.get(),
-            "duplex": self.duplex_var.get(),
-            "listen_mode": self.listen_mode.get(),
+            "duplex": self.duplex_var.get()
         }
         try:
             with open(CONFIG_FILE_PATH, "w") as f:
@@ -355,20 +352,13 @@ class WatchedMultiPrintApp:
                     except Exception as e:
                         print(f"Error deleting file': {e}")
 
-                    mode = self.listen_mode.get()
-
-                    if mode == "once":
-                        # One-time trigger completed: reset status and stop listener
-                        completion_message = f"Status: Job broadcasted to {len(selected_printers)} printers simultaneously!"
-                        self.root.after(0, lambda: self.stop_listening(completion_message))
-                        self.root.after(0, lambda: messagebox.showinfo(
-                            "Success", f"Detected and broadcasted to {len(selected_printers)} printers successfully!"
-                        ))
-                        break
-                    else:
-                        # CONTINUOUS MODE: Keep listening for the next file without stopping or popping up
-                        status_msg = f"Status: Sent '{filename}' to {len(selected_printers)} target(s). Waiting for next job..."
-                        self.root.after(0, lambda msg=status_msg: self.status_var.set(msg))
+                    # One-time trigger completed: reset status and stop listener
+                    completion_message = f"Status: Job broadcasted to {len(selected_printers)} printers simultaneously!"
+                    self.root.after(0, lambda: self.stop_listening(completion_message))
+                    self.root.after(0, lambda: messagebox.showinfo(
+                        "Success", f"Detected and broadcasted to {len(selected_printers)} printers successfully!"
+                    ))
+                    break
             except Exception as e:
                 print(f"Error during watch loop: {e}")
 

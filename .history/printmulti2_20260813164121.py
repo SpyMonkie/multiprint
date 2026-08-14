@@ -123,18 +123,6 @@ class WatchedMultiPrintApp:
         tk.Entry(dir_frame, textvariable=self.watch_path, width=35).pack(side="left", padx=5)
         tk.Button(dir_frame, text="Browse...", command=self.browse_folder).pack(side="left")
 
-        # Mode Selection
-        tk.Label(root, text="Mode Selector", font=("Arial", 10, "bold")).pack(pady=(10,5))
-        dir_frame = tk.Frame(root)
-        dir_frame.pack(fill="x", padx=20)
-        self.listen_mode = tk.StringVar(value="continuous") # "continuous" or "once"
-
-        mode_frame = tk.Frame(root)
-        mode_frame.pack(pady=5)
-
-        tk.Radiobutton(mode_frame, text="Continuous Mode", variable=self.listen_mode, value="continuous").pack(side="left", padx=10)
-        tk.Radiobutton(mode_frame, text="Single Job (Listen Once)", variable=self.listen_mode, value="once").pack(side="left", padx=10)
-
         # Display Status Message
         self.status_var = tk.StringVar(value="Status: Idle (Not Listenting)")
         self.status_label = tk.Label(root, textvariable=self.status_var, font=("Arial", 10, "italic"), fg="blue")
@@ -166,8 +154,6 @@ class WatchedMultiPrintApp:
                         self.copies_var.set(data["copies"])
                     if "duplex" in data:
                         self.duplex_var.set(data["duplex"])
-                    if "listen_mode" in data and data["listen_mode"]:
-                        self.listen_mode.set(data["listen_mode"])
 
                     # Restore checkbox selections for pritners
                     saved_printers = data.get("selected_printers", [])
@@ -191,8 +177,7 @@ class WatchedMultiPrintApp:
             "watch_dw_folder_path": self.watch_dwfolder_path.get(),
             "selected_printers": selected_printers,
             "copies": self.copies_var.get(),
-            "duplex": self.duplex_var.get(),
-            "listen_mode": self.listen_mode.get(),
+            "duplex": self.duplex_var.get()
         }
         try:
             with open(CONFIG_FILE_PATH, "w") as f:
@@ -355,20 +340,13 @@ class WatchedMultiPrintApp:
                     except Exception as e:
                         print(f"Error deleting file': {e}")
 
-                    mode = self.listen_mode.get()
-
-                    if mode == "once":
-                        # One-time trigger completed: reset status and stop listener
-                        completion_message = f"Status: Job broadcasted to {len(selected_printers)} printers simultaneously!"
-                        self.root.after(0, lambda: self.stop_listening(completion_message))
-                        self.root.after(0, lambda: messagebox.showinfo(
-                            "Success", f"Detected and broadcasted to {len(selected_printers)} printers successfully!"
-                        ))
-                        break
-                    else:
-                        # CONTINUOUS MODE: Keep listening for the next file without stopping or popping up
-                        status_msg = f"Status: Sent '{filename}' to {len(selected_printers)} target(s). Waiting for next job..."
-                        self.root.after(0, lambda msg=status_msg: self.status_var.set(msg))
+                    # One-time trigger completed: reset status and stop listener
+                    completion_message = f"Status: Job broadcasted to {len(selected_printers)} printers simultaneously!"
+                    self.root.after(0, lambda: self.stop_listening(completion_message))
+                    self.root.after(0, lambda: messagebox.showinfo(
+                        "Success", f"Detected and broadcasted to {len(selected_printers)} printers successfully!"
+                    ))
+                    break
             except Exception as e:
                 print(f"Error during watch loop: {e}")
 
@@ -420,19 +398,16 @@ class WatchedMultiPrintApp:
         #         print(f"Error printing PDF to {printer_name} using SumatraPDF: {e}")
 
         for copy_idx in range(num_copies):
+            hPrinter = win32print.OpenPrinter(printer_name)
             try:
-                hPrinter = win32print.OpenPrinter(printer_name)
-                try:
-                    hJob = win32print.StartDocPrinter(hPrinter, 1, ("MultiPrint Job", None, "RAW"))
-                    win32print.StartPagePrinter(hPrinter)
-                    with open(file_path, "rb") as f:
-                        win32print.WritePrinter(hPrinter, f.read())
-                    win32print.EndPagePrinter(hPrinter)
-                    win32print.EndDocPrinter(hPrinter)
-                finally:
-                    win32print.ClosePrinter(hPrinter)
-            except Exception as e:
-                print(f"Error printing to {printer_name}: {e}")
+                hJob = win32print.StartDocPrinter(hPrinter, 1, ("MultiPrint Job", None, "RAW"))
+                win32print.StartPagePrinter(hPrinter)
+                with open(file_path, "rb") as f:
+                    win32print.WritePrinter(hPrinter, f.read())
+                win32print.EndPagePrinter(hPrinter)
+                win32print.EndDocPrinter(hPrinter)
+            finally:
+                win32print.ClosePrinter(hPrinter)
 
         # for copy_idx in range(num_copies):
         #     try:
