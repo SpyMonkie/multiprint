@@ -349,26 +349,22 @@ class WatchedMultiPrintApp:
     #     return True
 
     def set_printer_duplex(self, printer_name, is_double_sided):
-        """Attempts to set duplex mode for physical driver spooling without requiring Admin privileges."""
-        if not is_double_sided:
-            return
+        # modifies windows driver settings for the printer to set duplex mode
         try:
-            # Use PRINTER_ACCESS_USE (0x00008) instead of PRINTER_ALL_ACCESS to avoid Admin Access Denied errors
-            PRINTER_ACCESS_USE = 0x00008
-            p_handle = win32print.OpenPrinter(printer_name, {"DesiredAccess": PRINTER_ACCESS_USE})
+            # Open printer with modification access
+            PRINTER_ALL_ACCESS = 0xF000C
+            p_handle = win32print.OpenPrinter(printer_name, {"DesiredAccess": PRINTER_ALL_ACCESS})
             try:
-                p_info = win32print.GetPrinter(p_handle, 2)
-                devmode = p_info.get("pDevMode")
+                p_info = win32print.GetPrinter(p_handle, 2)  # Level 2 for detailed info
+                devmode = p_info["pDevMode"]
                 if devmode:
                     devmode.Duplex = DMDUP_VERTICAL if is_double_sided else DMDUP_SIMPLEX
-                    devmode.Fields |= win32print.DM_DUPLEX
-                    # Apply to current Document DevMode without modifying global system driver settings
-                    win32print.DocumentProperties(0, p_handle, printer_name, devmode, devmode, 2)
+                    devmode.Fields |= win32print.DM_DUPLEX  # Ensure the duplex field is marked as valid
+                    win32print.SetPrinter(p_handle, 2, p_info, 0)
             finally:
                 win32print.ClosePrinter(p_handle)
         except Exception as e:
-            # Log as a soft warning so printing continues cleanly
-            self.log(f"Notice: Duplex driver override skipped for {printer_name} ({e})")
+            self.log(f"Error setting duplex mode for {printer_name}: {e}")
 
     def watch_loop(self):
         watch_dir = self.watch_path.get()
@@ -452,13 +448,12 @@ class WatchedMultiPrintApp:
         try:
             hPrinter = win32print.OpenPrinter(printer_name)
             try:
-                for _ in range(num_copies):
-                    hJob = win32print.StartDocPrinter(hPrinter, 1, ("MultiPrint Job", None, "RAW"))
-                    win32print.StartPagePrinter(hPrinter)
-                    with open(file_path, "rb") as f:
-                        win32print.WritePrinter(hPrinter, f.read())
-                    win32print.EndPagePrinter(hPrinter)
-                    win32print.EndDocPrinter(hPrinter)
+                hJob = win32print.StartDocPrinter(hPrinter, 1, ("MultiPrint Job", None, "RAW"))
+                win32print.StartPagePrinter(hPrinter)
+                with open(file_path, "rb") as f:
+                    win32print.WritePrinter(hPrinter, f.read())
+                win32print.EndPagePrinter(hPrinter)
+                win32print.EndDocPrinter(hPrinter)
                 return True
             finally:
                 win32print.ClosePrinter(hPrinter)
@@ -521,8 +516,7 @@ class WatchedMultiPrintApp:
         #         print(f"DocuWare REST API Upload failed: {e}")
 
         # Configure duplex driver settings for physical hardware
-        if is_duplex:
-            self.set_printer_duplex(printer_name, is_duplex)
+        self.set_printer_duplex(printer_name, is_duplex)
         self.log(f"Processing print job for: '{printer_name}'...")
 
         # Check if target is a virtual driver (Microsoft Print to PDF, etc.)

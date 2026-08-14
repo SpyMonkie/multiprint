@@ -350,8 +350,6 @@ class WatchedMultiPrintApp:
 
     def set_printer_duplex(self, printer_name, is_double_sided):
         """Attempts to set duplex mode for physical driver spooling without requiring Admin privileges."""
-        if not is_double_sided:
-            return
         try:
             # Use PRINTER_ACCESS_USE (0x00008) instead of PRINTER_ALL_ACCESS to avoid Admin Access Denied errors
             PRINTER_ACCESS_USE = 0x00008
@@ -521,8 +519,7 @@ class WatchedMultiPrintApp:
         #         print(f"DocuWare REST API Upload failed: {e}")
 
         # Configure duplex driver settings for physical hardware
-        if is_duplex:
-            self.set_printer_duplex(printer_name, is_duplex)
+        self.set_printer_duplex(printer_name, is_duplex)
         self.log(f"Processing print job for: '{printer_name}'...")
 
         # Check if target is a virtual driver (Microsoft Print to PDF, etc.)
