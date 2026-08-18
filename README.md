@@ -2,10 +2,9 @@
 
 MultiPrint is a Windows GUI application that allows you to select multiple - Physical and Virtual - printers and print a document to all of them simultaneously. A hot-folder will watch for new files, print them automatically to the selected printers, and then delete the file. 
 
-## Printer Instructions
-1. All printers must support printing PDFs
-2. Select the printers you want to print to
-3. Set the print settings for the printers
+## General Instructions
+1. Select the printers you want to print to
+2. Set the print settings for the printers
     - Select duplex printing
     - Select number of copies
 4. Select Docuware Import Folder (For Docuware only - leave as default if not using Docuware)
