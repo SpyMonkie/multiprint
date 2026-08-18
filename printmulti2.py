@@ -1,3 +1,4 @@
+from string import templatelib
 import sys
 import os
 import time
@@ -652,9 +653,15 @@ class WatchedMultiPrintApp:
 
         filename = os.path.basename(file_path)
         destination = os.path.join(DOCUWARE_WATCH_FOLDER, filename)
+        temp_destination = os.path.join(DOCUWARE_WATCH_FOLDER, f".{filename}.tmp")
 
-        shutil.copy2(file_path, destination)
-        self.log(f"File '{filename}' dropped into '{file_path}'.")
+        # rename file to .tmp until file is fully copied to folder
+        shutil.copy2(file_path, temp_destination)
+
+        # Instant atomic rename to .pdf once file is completely written & closed
+        os.replace(temp_destination, destination)
+
+        self.log(f"File '{filename}' copied to Docuware Watch Folder.")
 
 # Unique identifier string for your application (use any unique name)
 APP_MUTEX_NAME = "Global\\WatchedMultiPrintApp_SingleInstance_Mutex_9988"
