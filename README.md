@@ -1,6 +1,6 @@
 # MultiPrint (Watched Multi-Printer Router)
 
-MultiPrint is a Windows GUI application that allows you to select multiple printers and print a document to all of them simultaneously. A hot-folder will watch for new files, print them automatically to the selected printers, and then delete the file. 
+MultiPrint is a Windows GUI application that allows you to select multiple - Physical and Virtual - printers and print a document to all of them simultaneously. A hot-folder will watch for new files, print them automatically to the selected printers, and then delete the file. 
 
 ## Printer Instructions
 1. All printers must support printing PDFs
