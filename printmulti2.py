@@ -1,4 +1,3 @@
-from string import templatelib
 import sys
 import os
 import time
@@ -268,12 +267,12 @@ class WatchedMultiPrintApp:
     def browse_folder(self):
         folder = filedialog.askdirectory(title="Select Folder to Watch for Print Jobs")
         if folder:
-            self.watch_path.set(folder)
+            self.watch_path.set(os.path.normpath(folder))
 
     def browse_dw_folder(self):
         folder = filedialog.askdirectory(title="Select DocuWare Import Folder")
         if folder:
-            self.watch_dwfolder_path.set(folder)
+            self.watch_dwfolder_path.set(os.path.normpath(folder))
 
     def toggle_listening(self):
         if self.is_listening:
@@ -393,7 +392,7 @@ class WatchedMultiPrintApp:
                 files = [f for f in os.listdir(watch_dir) if os.path.isfile(os.path.join(watch_dir, f))]
 
                 if files:
-                    target_file = os.path.join(watch_dir, files[0])
+                    target_file = os.path.normpath(os.path.join(watch_dir, files[0]))
                     filename = files[0]
 
                     # Short pause to ensure Windows has finished writing the file
@@ -474,12 +473,13 @@ class WatchedMultiPrintApp:
     def print_via_win32print_raw(self, printer_name, file_path, num_copies):
         # Method A: Direct RAW spooling using win32print (Best for physical printers).
         try:
+            norm_path = os.path.normpath(file_path)
             hPrinter = win32print.OpenPrinter(printer_name)
             try:
                 for _ in range(num_copies):
                     hJob = win32print.StartDocPrinter(hPrinter, 1, ("MultiPrint Job", None, "RAW"))
                     win32print.StartPagePrinter(hPrinter)
-                    with open(file_path, "rb") as f:
+                    with open(norm_path, "rb") as f:
                         win32print.WritePrinter(hPrinter, f.read())
                     win32print.EndPagePrinter(hPrinter)
                     win32print.EndDocPrinter(hPrinter)
@@ -493,16 +493,36 @@ class WatchedMultiPrintApp:
     def print_via_sumatrapdf(self, sumatra_path, printer_name, file_path, num_copies, is_duplex):
         # Method B: Silent background rendering via SumatraPDF CLI executable.
         try:
+            norm_path = os.path.normpath(file_path)
             duplex_setting = "duplexlong" if is_duplex else "simplex"
             cmd = [
                 sumatra_path,
+                "-silent",
                 "-print-to", printer_name,
                 "-print-settings", f"{num_copies}x,{duplex_setting}",
-                "-silent",
-                file_path
+                norm_path
             ]
-            result = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            return result.returncode == 0
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if result.returncode == 0:
+                return True
+
+            # If duplex was requested and failed (e.g. driver doesn't support duplex command), retry without duplex
+            if is_duplex:
+                self.log(f"Notice: Duplex command rejected by '{printer_name}'. Retrying standard print...")
+                cmd_fallback = [
+                    sumatra_path,
+                    "-silent",
+                    "-print-to", printer_name,
+                    "-print-settings", f"{num_copies}x",
+                    norm_path
+                ]
+                res_fallback = subprocess.run(cmd_fallback, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                if res_fallback.returncode == 0:
+                    return True
+
+            err = result.stderr.decode('utf-8', errors='ignore').strip()
+            self.log(f"SumatraPDF failed for '{printer_name}' (exit code {result.returncode}): {err}")
+            return False
         except Exception as e:
             self.log(f"SumatraPDF failed: {e}")
             return False
@@ -510,9 +530,10 @@ class WatchedMultiPrintApp:
     def print_via_shellexecute(self, printer_name, file_path, num_copies):
         # Method C: Windows ShellExecute printto verb (Fallback for standard files)
         try:
+            norm_path = os.path.normpath(file_path)
             for _ in range(num_copies):
                 # Returns hInstance > 32 if process started successfully
-                status = win32api.ShellExecute(0, "printto", file_path, f'"{printer_name}"', ".", 0)
+                status = win32api.ShellExecute(0, "printto", norm_path, f'"{printer_name}"', ".", 0)
                 if status <= 32:
                     return False
                 time.sleep(1.0)
@@ -533,7 +554,7 @@ class WatchedMultiPrintApp:
                 self.log(f"DocuWare transfer successful!")
                 return True
             except Exception as e:
-                self.log(f"DocuWare transfer fialed: {e}")
+                self.log(f"DocuWare transfer failed: {e}")
                 return False
 
         # route 1 if docuware specifically
