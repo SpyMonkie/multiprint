@@ -149,11 +149,11 @@ class WatchedMultiPrintApp:
 
         # Display Status Message
         self.status_var = tk.StringVar(value="Status: Idle (Not Listenting)")
-        self.status_label = tk.Label(self.main_tab, textvariable=self.status_var, font=("Arial", 10, "italic"), fg="blue")
+        self.status_label = tk.Label(self.root, textvariable=self.status_var, font=("Arial", 10, "italic"), fg="blue")
         self.status_label.pack(pady=(10, 5))
 
         # Action button to start/stop listening
-        self.listen_btn = tk.Button(self.main_tab, text="START LISTENING", bg="green", fg="white", font=("Arial", 11, "bold"), command=self.toggle_listening)
+        self.listen_btn = tk.Button(self.root, text="START LISTENING", bg="green", fg="white", font=("Arial", 11, "bold"), command=self.toggle_listening)
         self.listen_btn.pack(pady=10)
 
         # ACTIVITY LOG CONTENT
