@@ -169,6 +169,15 @@ class WatchedMultiPrintApp:
 
         self.load_config()  # Load saved DocuWare API settings if available
 
+        # Auto-save whenever user changes any settings or checkboxes
+        self.watch_path.trace_add("write", lambda *a: self.save_config())
+        self.watch_dwfolder_path.trace_add("write", lambda *a: self.save_config())
+        self.copies_var.trace_add("write", lambda *a: self.save_config())
+        self.duplex_var.trace_add("write", lambda *a: self.save_config())
+        self.listen_mode.trace_add("write", lambda *a: self.save_config())
+        for var in self.printer_vars.values():
+            var.trace_add("write", lambda *a: self.save_config())
+
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)  # Handle window close event
 
     def clear_log(self):
@@ -371,10 +380,14 @@ class WatchedMultiPrintApp:
             self.log(f"Notice: Duplex driver override skipped for {printer_name} ({e})")
 
     def watch_loop(self):
-        watch_dir = self.watch_path.get()
-
         while self.is_listening:
             try:
+                # Read watch directory dynamically in case the user changed it while listening
+                watch_dir = self.watch_path.get()
+                if not watch_dir or not os.path.exists(watch_dir):
+                    time.sleep(1)
+                    continue
+
                 # Look for files inside the target directory
                 files = [f for f in os.listdir(watch_dir) if os.path.isfile(os.path.join(watch_dir, f))]
 
@@ -388,16 +401,25 @@ class WatchedMultiPrintApp:
                     if not self.wait_until_file_ready(target_file, timeout=10):
                         time.sleep(1)
                         continue  # Skip this iteration if file is not ready
-                    
 
-                    self.root.after(0, lambda: self.status_var.set(f"Status: Found '{filename}'! Printing..."))
-
-                    # Send job to selected printers
+                    # Read all settings dynamically at the exact moment the file is ready to print
                     selected_printers = [p for p, var in self.printer_vars.items() if var.get()]
-                    num_copies = max(1, self.copies_var.get())
-                    is_duplex = self.duplex_var.get()
+                    if not selected_printers:
+                        self.root.after(0, lambda: self.status_var.set(f"Status: Detected '{filename}', but NO PRINTERS selected. Waiting for selection..."))
+                        self.log(f"Warning: '{filename}' detected, but no printers are checked. Waiting for printer selection...")
+                        time.sleep(2)
+                        continue
 
-                    # Process printing with selected options (copies, duplex) and send to all selected printers
+                    try:
+                        num_copies = max(1, int(self.copies_var.get()))
+                    except Exception:
+                        num_copies = 1
+
+                    is_duplex = bool(self.duplex_var.get())
+
+                    self.root.after(0, lambda: self.status_var.set(f"Status: Found '{filename}'! Printing ({num_copies} copies, Duplex: {is_duplex})..."))
+
+                    # Process printing with the latest options and send to all selected printers
                     results = self.process_and_print(target_file, selected_printers, num_copies, is_duplex)
 
                     # Pause to let Windows process the print job before deleting the file
@@ -407,12 +429,13 @@ class WatchedMultiPrintApp:
                     try:
                         os.remove(target_file)
                     except Exception as e:
-                        self.log(f"Error deleting file': {e}")
+                        self.log(f"Error deleting file: {e}")
 
                     # Analyze results
                     successful = [p for p, success in results.items() if success]
                     failed = [p for p, success in results.items() if not success]
 
+                    # Dynamically read current mode in case user toggled between Continuous and Once
                     mode = self.listen_mode.get()
 
                     if mode == "once":
@@ -469,11 +492,12 @@ class WatchedMultiPrintApp:
     def print_via_sumatrapdf(self, sumatra_path, printer_name, file_path, num_copies, is_duplex):
         # Method B: Silent background rendering via SumatraPDF CLI executable.
         try:
-            duplex_setting = "duplex" if is_duplex else "simplex"
+            duplex_setting = "duplexlong" if is_duplex else "simplex"
             cmd = [
                 sumatra_path,
                 "-print-to", printer_name,
                 "-print-settings", f"{num_copies}x,{duplex_setting}",
+                "-silent",
                 file_path
             ]
             result = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -529,14 +553,18 @@ class WatchedMultiPrintApp:
         is_virtual = self.is_virtual_printer(printer_name)
 
         # Try Direct RAW Spooling
-        if not is_virtual:
+        # only for standard single-sided jobs on physical printers
+        if not is_virtual and not is_duplex:
             self.log(" Trying win32print RAW Spooling...")
             if self.print_via_win32print_raw(printer_name, file_path, num_copies):
                 self.log(f"win32print RAW spooling Success: Sent raw bytes to '{printer_name}'")
                 return True
+        elif is_duplex and not is_virtual:
+            self.log("Skipping RAW spooling: Duplex requested (routing to render engine)...")
         else:
-            self.log("Skipped: Virual Printer detected (cannot accept RAW binary)")
+            self.log("Skipped: Virtual Printer detected (cannot accept RAW binary)")
 
+        # SumatraPDF (Handles Duplex and acts as fallback for single-sided)
         sumatra_path = self.get_sumatra_path()
         if ext == ".pdf" and sumatra_path:
             self.log("Trying SumatraPDF Engine...")
