@@ -24,7 +24,6 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
-        cache: 'pip'
 
     - name: Install dependencies
       run: |
@@ -40,13 +39,13 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: MultiPrint-EXE
-        path: dist/printmulti2.exe
+        path: dist/MultiPrint.exe
 
     # Automatically creates a release and attaches the EXE when pushing a tag (e.g. v1.0.0)
     - name: Release to GitHub Releases
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v2
       with:
-        files: dist/printmulti2.exe
+        files: dist/MultiPrint.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
